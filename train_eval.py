@@ -48,16 +48,18 @@ def train(config, model, train_iter, dev_iter, test_iter):
     model.train()
     for epoch in range(config.num_epochs):
         print('Epoch [{}/{}]'.format(epoch + 1, config.num_epochs))
-        for i, (trains, labels) in enumerate(train_iter):
-            outputs = model(trains)
+        for i, (claim, complaint, answer, labels) in enumerate(train_iter):
+            print("step ",i)
+            outputs = model(claim, complaint, answer)
             model.zero_grad()
             loss = F.cross_entropy(outputs, labels)
+            print("loss = ", loss)
             loss.backward()
             optimizer.step()
-            if total_batch % 100 == 0:
+            if total_batch % 50 == 0:
                 # 每多少轮输出在训练集和验证集上的效果
                 true = labels.data.cpu()
-                predic = torch.max(outputs.data, 1)[1].cpu()
+                predic = (outputs > 0.5).int().cpu()
                 train_acc = metrics.accuracy_score(true, predic)
                 dev_acc, dev_loss = evaluate(config, model, dev_iter)
                 if dev_loss < dev_best_loss:
@@ -103,15 +105,22 @@ def evaluate(config, model, data_iter, test=False):
     loss_total = 0
     predict_all = np.array([], dtype=int)
     labels_all = np.array([], dtype=int)
+    acc_all = np.array([], dtype=int)
     with torch.no_grad():
-        for texts, labels in data_iter:
-            outputs = model(texts)
+        for i, (claim, complaint, answer, labels) in enumerate(data_iter):
+            print("evaluate :", i)
+            outputs = model(claim, complaint, answer)
             loss = F.cross_entropy(outputs, labels)
             loss_total += loss
             labels = labels.data.cpu().numpy()
-            predic = torch.max(outputs.data, 1)[1].cpu().numpy()
+            predic = (outputs > 0.5).int().cpu().numpy()
             labels_all = np.append(labels_all, labels)
             predict_all = np.append(predict_all, predic)
+            acc_batch = np.where(np.all(predic == labels, axis=1), 1, 0)
+            acc_all = np.append(acc_all, acc_batch)
+
+    problem_acc = np.mean(acc_all)
+    print("problem acc=", problem_acc)
 
     acc = metrics.accuracy_score(labels_all, predict_all)
     if test:
