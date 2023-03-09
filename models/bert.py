@@ -23,39 +23,59 @@ class Config(object):
         self.num_epochs = 3                                             # epoch数
         self.batch_size = 1                                             # mini-batch大小
         self.pad_size = 512                                             # 每句话处理成的长度(短填长切)
-        self.learning_rate = 5e-5                                       # 学习率
+        self.learning_rate = 1e-5                                       # 学习率
         self.bert_path = './bert_pretrain'
         self.tokenizer = BertTokenizer.from_pretrained(self.bert_path)
         self.hidden_size = 768
-        #self.linear_size = 256
+        self.linear_size = 256
 
 
 
 class Model(nn.Module):
 
     def __init__(self, config):
+
+        def create_encoder():
+            encoder_layer1 = nn.TransformerEncoderLayer(d_model=config.hidden_size, nhead=8)
+            encoder_layer2 = nn.TransformerEncoderLayer(d_model=config.hidden_size, nhead=8)
+            encoder = nn.Sequential(encoder_layer1, encoder_layer2)
+            return encoder
+
         super(Model, self).__init__()
         self.bert = BertModel.from_pretrained(config.bert_path)
         for param in self.bert.parameters():
             param.requires_grad = True
-        self.fc = nn.Linear(config.hidden_size*3, config.num_classes)
+
+        self.main_encoder = nn.Sequential(create_encoder(), create_encoder())
+        self.claim_encoder = create_encoder()
+        self.complaint_encoder = create_encoder()
+        self.answer_encoder = create_encoder()
+
+        self.linear1 = nn.Linear(config.hidden_size*3, config.linear_size)
         self.sigmoid = nn.Sigmoid()
+        self.linear2 = nn.Linear(config.linear_size, config.num_classes)
 
 
 
     def forward(self, claim, complaint, answer):
-        def sub_forward(x):
+        def main_forward(x, specific_model):
             context = x[:, 0, :]  # 输入的句子
             mask = x[:, 1, :]  # 对padding部分进行mask，和句子一个size，padding部分用0表示，如：[1, 1, 1, 1, 0, 0]
-            _, pooled = self.bert(context, attention_mask=mask, output_all_encoded_layers=False)
-            return pooled
+            bert_output, _ = self.bert(context, attention_mask=mask)
+            bert_output = bert_output[-1]
+            encoder_outputs = self.main_encoder(bert_output)
+            specific_outputs = specific_model(encoder_outputs)
+            pooled_output = torch.mean(specific_outputs, dim=1)
+            return pooled_output
 
-        claim = sub_forward(claim)
-        complaint = sub_forward(complaint)
-        answer = sub_forward(answer)
+        claim = main_forward(claim, self.claim_encoder)
+        complaint = main_forward(complaint, self.complaint_encoder)
+        answer = main_forward(answer, self.answer_encoder)
 
         all = torch.cat((claim, complaint, answer), 1)
 
-        out = self.fc(all)
+        out = self.linear1(all)
+        out = self.sigmoid(out)
+        out = self.linear2(out)
         out = self.sigmoid(out)
         return out

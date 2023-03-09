@@ -49,11 +49,12 @@ def train(config, model, train_iter, dev_iter, test_iter):
     for epoch in range(config.num_epochs):
         print('Epoch [{}/{}]'.format(epoch + 1, config.num_epochs))
         for i, (claim, complaint, answer, labels) in enumerate(train_iter):
-            print("step ",i)
             outputs = model(claim, complaint, answer)
             model.zero_grad()
             loss = F.cross_entropy(outputs, labels)
-            print("loss = ", loss)
+            if i%1 == 0:
+                print("step ", i)
+                print("loss = ", loss)
             loss.backward()
             optimizer.step()
             if total_batch % 50 == 0:
@@ -89,6 +90,8 @@ def test(config, model, test_iter):
     model.load_state_dict(torch.load(config.save_path))
     model.eval()
     start_time = time.time()
+    evaluate(config, model, test_iter, test=True)
+    return
     test_acc, test_loss, test_report, test_confusion = evaluate(config, model, test_iter, test=True)
     msg = 'Test Loss: {0:>5.2},  Test Acc: {1:>6.2%}'
     print(msg.format(test_loss, test_acc))
@@ -112,8 +115,11 @@ def evaluate(config, model, data_iter, test=False):
             outputs = model(claim, complaint, answer)
             loss = F.cross_entropy(outputs, labels)
             loss_total += loss
+            pre_labels = labels.int().cpu().numpy()
             labels = labels.data.cpu().numpy()
             predic = (outputs > 0.5).int().cpu().numpy()
+            #print(predic)
+            #print(pre_labels)
             labels_all = np.append(labels_all, labels)
             predict_all = np.append(predict_all, predic)
             acc_batch = np.where(np.all(predic == labels, axis=1), 1, 0)

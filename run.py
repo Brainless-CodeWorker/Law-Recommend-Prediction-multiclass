@@ -2,7 +2,7 @@
 import time
 import torch
 import numpy as np
-from train_eval import train, init_network
+from train_eval import train, init_network, test
 from importlib import import_module
 import argparse
 from utils import build_dataset, build_iterator, get_time_dif
@@ -34,4 +34,7 @@ if __name__ == '__main__':
 
     # train
     model = x.Model(config).to(config.device)
+    #test(config, model, test_iter)
+    #exit(0)
     train(config, model, train_iter, dev_iter, test_iter)
+

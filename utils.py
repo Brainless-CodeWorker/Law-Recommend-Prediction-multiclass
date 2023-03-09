@@ -35,7 +35,7 @@ def build_dataset(config):
 
     def load_dataset(path, pad_size=512):
         contents = []
-        count = 10000
+        count = 100
         with open(path, 'r', encoding='UTF-8') as f:
             for line in tqdm(f):
                 count -= 1
@@ -55,7 +55,7 @@ def build_dataset(config):
     train = load_dataset(config.train_path, config.pad_size)
     dev = load_dataset(config.dev_path, config.pad_size)
     test = load_dataset(config.test_path, config.pad_size)
-    return train, dev[:len(dev)//25], test[:len(dev)//25]
+    return train, dev[:len(dev)//10], test[:len(dev)//10]
 
 
 class DatasetIterater(object):
