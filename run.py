@@ -34,4 +34,8 @@ if __name__ == '__main__':
 
     # train
     model = x.Model(config).to(config.device)
+    try:
+        model.load_state_dict(torch.load('Judgements/saved_dict/bert_v1.0.ckpt', map_location=torch.device('cuda' if torch.cuda.is_available() else 'cpu') ))
+    except:
+        print("Can't load model")
     train(config, model, train_iter, dev_iter, test_iter)
