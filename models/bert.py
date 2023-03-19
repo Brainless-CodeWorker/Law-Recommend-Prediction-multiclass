@@ -36,8 +36,8 @@ class SelfAttention(nn.Module):
 
     def forward(self, x):
         scores = self.attention(x)
-        weights = torch.softmax(scores, dim=1)
-        context_vector = torch.sum(weights * x, dim=1)
+        weights = torch.softmax(scores, dim=0)
+        context_vector = torch.sum(weights * x, dim=0)
         return context_vector
 
 class Model(nn.Module):
@@ -51,21 +51,30 @@ class Model(nn.Module):
         self.linear = nn.Linear(config.hidden_size, 1)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, tokens):
-        def main_forward(x):
-            context = x[:, 0, :]  # 输入的句子
-            mask = x[:, 1, :]  # 对padding部分进行mask，和句子一个size，padding部分用0表示，如：[1, 1, 1, 1, 0, 0]
-            _, pooled = self.bert(context, attention_mask=mask)
-            return pooled
+    def main_forward(self, x):
+        if x.dim() == 2:
+            x = x.unsqueeze(0)
+        context = x[:, 0, :]  # 输入的句子
+        mask = x[:, 1, :]  # 对padding部分进行mask，和句子一个size，padding部分用0表示，如：[1, 1, 1, 1, 0, 0]
+        _, pooled = self.bert(context, attention_mask=mask)
+        return pooled
 
-        outputs = []
-        for token in tokens:
-            out = main_forward(token)
-            outputs.append(out)
-        out_tensors = torch.stack(outputs, dim=0)
-
+    def main_forward_end(self, out_tensors):
         attention_outputs = self.self_attention(out_tensors)
         out = self.linear(attention_outputs)
         out = self.sigmoid(out)
-        out = out[:, 0]
+        return out
+
+    #预先求一次所有的tensor
+    def pre_forward(self, tokens):
+        self.output_list = self.main_forward(tokens)
+        out = self.main_forward_end(self.output_list)
+        return out
+
+    #真·正向传播
+    def forward(self, token, id):
+        new_out = self.output_list.clone()
+        out = self.main_forward(token)
+        new_out[id] = out
+        out = self.main_forward_end(new_out)
         return out

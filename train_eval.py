@@ -45,19 +45,34 @@ def train(config, model, train_iter, dev_iter, test_iter):
     dev_best_loss = float('inf')
     last_improve = 0  # 记录上次验证集loss下降的batch数
     flag = False  # 记录是否很久没有效果提升
-    model.train()
+    output_flag = True
+    def debug(text):
+        if output_flag:
+            print(text)
+
     for epoch in range(config.num_epochs):
         print('Epoch [{}/{}]'.format(epoch + 1, config.num_epochs))
         for i, (tokens, labels) in enumerate(train_iter):
-            outputs = model(tokens)
-            model.zero_grad()
-            loss_function = torch.nn.BCELoss()
-            loss = loss_function(outputs, labels)
-            if i%1 == 0:
-                print("step ", i)
-                print("loss = ", loss)
-            loss.backward()
-            optimizer.step()
+
+            #仅支持batch_size = 1
+            tokens = tokens[0]
+            #参数预处理
+
+            debug('Running base')
+            model.eval()
+            with torch.no_grad():
+                output = model.pre_forward(tokens)
+            print(loss, "output=", output, "label=", labels)
+
+            model.train()
+            for id, token in enumerate(tokens):
+                output = model(token, id)
+                model.zero_grad()
+                loss_function = torch.nn.BCELoss()
+                loss = loss_function(output, labels)
+                print("Run sub ", id, "loss=", loss, "output=", output, "label=", labels)
+                loss.backward()
+                optimizer.step()
 
             continue
 
