@@ -6,13 +6,16 @@ from datetime import timedelta
 import json
 import ast
 
-PAD, CLS = '[PAD]', '[CLS]'  # padding符号, bert中综合信息符号
+PAD, CLS, SEP = '[PAD]', '[CLS]', '[SEP]'  # padding符号, bert中综合信息符号
 
 
 def build_dataset(config):
-    def token_and_pad(content, pad_size=512):
-        token = config.tokenizer.tokenize(content)
-        token = [CLS] + token
+    def token_and_pad(law_text, law_hierarchy, text, pad_size=512):
+        last_text = text
+        law_text = config.tokenizer.tokenize(law_text)
+        law_hierarchy = config.tokenizer.tokenize(law_hierarchy)
+        text = config.tokenizer.tokenize(text)
+        token = [CLS] + law_text + [SEP] + law_hierarchy + [SEP] + text
         seq_len = len(token)
         mask = []
         token_ids = config.tokenizer.convert_tokens_to_ids(token)
@@ -26,16 +29,9 @@ def build_dataset(config):
                 seq_len = pad_size
         return [token_ids, mask]
 
-    def convert_label(s, n):
-        a = s #ast.literal_eval(s)
-        b = [0] * n
-        for i in a:
-            b[int(i)] = 1
-        return b
-
     def load_dataset(path, pad_size=512):
         contents = []
-        count = 100
+        count = 10
         with open(path, 'r', encoding='UTF-8') as f:
             for line in tqdm(f):
                 count -= 1
@@ -45,17 +41,17 @@ def build_dataset(config):
                 if not lin:
                     continue
                 obj = json.loads(lin.strip())
-                claim, complaint, answer, label = obj['claim'], obj['complaint'], obj['answer'], obj['laws']
-                claim = token_and_pad(claim)
-                complaint = token_and_pad(complaint)
-                answer = token_and_pad(answer)
-                label = convert_label(label, config.num_classes)
-                contents.append((claim, complaint, answer, label))
+                texts, law_text, law_hierarchy, label = obj['texts'], obj['text_combined'], obj['law_hierarchy'], obj['correct']
+                tokens = []
+                for text in texts:
+                    token = token_and_pad(law_text, law_hierarchy, text)
+                    tokens.append(token)
+                contents.append((tokens, label))
         return contents
     train = load_dataset(config.train_path, config.pad_size)
     dev = load_dataset(config.dev_path, config.pad_size)
     test = load_dataset(config.test_path, config.pad_size)
-    return train, dev[:len(dev)//10], test[:len(dev)//10]
+    return train, dev[:len(dev)], test[:len(dev)]
 
 
 class DatasetIterater(object):
@@ -72,9 +68,7 @@ class DatasetIterater(object):
     def _to_tensor(self, datas):
         a = torch.LongTensor([_[0] for _ in datas]).to(self.device)
         b = torch.LongTensor([_[1] for _ in datas]).to(self.device)
-        c = torch.LongTensor([_[2] for _ in datas]).to(self.device)
-        d = torch.LongTensor([_[3] for _ in datas]).to(self.device)
-        return a, b, c, d.float()
+        return a, b.float()
 
     def __next__(self):
         if self.residue and self.index == self.n_batches:

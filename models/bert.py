@@ -27,55 +27,45 @@ class Config(object):
         self.bert_path = './bert_pretrain'
         self.tokenizer = BertTokenizer.from_pretrained(self.bert_path)
         self.hidden_size = 768
-        self.linear_size = 256
 
+class SelfAttention(nn.Module):
+    def __init__(self, hidden_size):
+        super(SelfAttention, self).__init__()
+        self.hidden_size = hidden_size
+        self.attention = nn.Linear(hidden_size, 1)
 
+    def forward(self, x):
+        scores = self.attention(x)
+        weights = torch.softmax(scores, dim=1)
+        context_vector = torch.sum(weights * x, dim=1)
+        return context_vector
 
 class Model(nn.Module):
 
     def __init__(self, config):
-
-        def create_encoder():
-            encoder_layer1 = nn.TransformerEncoderLayer(d_model=config.hidden_size, nhead=8)
-            encoder_layer2 = nn.TransformerEncoderLayer(d_model=config.hidden_size, nhead=8)
-            encoder = nn.Sequential(encoder_layer1, encoder_layer2)
-            return encoder
-
         super(Model, self).__init__()
         self.bert = BertModel.from_pretrained(config.bert_path)
         for param in self.bert.parameters():
             param.requires_grad = True
-
-        self.main_encoder = nn.Sequential(create_encoder(), create_encoder())
-        self.claim_encoder = create_encoder()
-        self.complaint_encoder = create_encoder()
-        self.answer_encoder = create_encoder()
-
-        self.linear1 = nn.Linear(config.hidden_size*3, config.linear_size)
+        self.self_attention = SelfAttention(config.hidden_size)
+        self.linear = nn.Linear(config.hidden_size, 1)
         self.sigmoid = nn.Sigmoid()
-        self.linear2 = nn.Linear(config.linear_size, config.num_classes)
 
-
-
-    def forward(self, claim, complaint, answer):
-        def main_forward(x, specific_model):
+    def forward(self, tokens):
+        def main_forward(x):
             context = x[:, 0, :]  # 输入的句子
             mask = x[:, 1, :]  # 对padding部分进行mask，和句子一个size，padding部分用0表示，如：[1, 1, 1, 1, 0, 0]
-            bert_output, _ = self.bert(context, attention_mask=mask)
-            bert_output = bert_output[-1]
-            encoder_outputs = self.main_encoder(bert_output)
-            specific_outputs = specific_model(encoder_outputs)
-            pooled_output = torch.mean(specific_outputs, dim=1)
-            return pooled_output
+            _, pooled = self.bert(context, attention_mask=mask)
+            return pooled
 
-        claim = main_forward(claim, self.claim_encoder)
-        complaint = main_forward(complaint, self.complaint_encoder)
-        answer = main_forward(answer, self.answer_encoder)
+        outputs = []
+        for token in tokens:
+            out = main_forward(token)
+            outputs.append(out)
+        out_tensors = torch.stack(outputs, dim=0)
 
-        all = torch.cat((claim, complaint, answer), 1)
-
-        out = self.linear1(all)
+        attention_outputs = self.self_attention(out_tensors)
+        out = self.linear(attention_outputs)
         out = self.sigmoid(out)
-        out = self.linear2(out)
-        out = self.sigmoid(out)
+        out = out[:, 0]
         return out

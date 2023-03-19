@@ -48,15 +48,19 @@ def train(config, model, train_iter, dev_iter, test_iter):
     model.train()
     for epoch in range(config.num_epochs):
         print('Epoch [{}/{}]'.format(epoch + 1, config.num_epochs))
-        for i, (claim, complaint, answer, labels) in enumerate(train_iter):
-            outputs = model(claim, complaint, answer)
+        for i, (tokens, labels) in enumerate(train_iter):
+            outputs = model(tokens)
             model.zero_grad()
-            loss = F.cross_entropy(outputs, labels)
+            loss_function = torch.nn.BCELoss()
+            loss = loss_function(outputs, labels)
             if i%1 == 0:
                 print("step ", i)
                 print("loss = ", loss)
             loss.backward()
             optimizer.step()
+
+            continue
+
             if total_batch % 50 == 0:
                 # 每多少轮输出在训练集和验证集上的效果
                 true = labels.data.cpu()
