@@ -28,7 +28,7 @@ def read_jsonl_file(file_path):
 # 将列表按比例划分为训练集、验证集和测试集，并将它们写入对应的文件中
 def split_data(data, train_ratio, val_ratio, test_ratio):
     assert train_ratio + val_ratio + test_ratio == 1.0, "The sum of ratios should be equal to 1.0"
-    random.shuffle(data)
+    #random.shuffle(data)
     total_size = len(data)
     train_size = int(train_ratio * total_size)
     val_size = int(val_ratio * total_size)
@@ -40,7 +40,7 @@ def split_data(data, train_ratio, val_ratio, test_ratio):
 
 # 将数据写入jsonl文件
 def write_jsonl_file(file_path, data):
-    data = data[:len(data)//100]
+    data = data[:len(data)]
     with open(file_path, "w", encoding="utf-8") as f:
         for item in data:
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
@@ -50,7 +50,7 @@ def write_jsonl_file(file_path, data):
 
 # 划分数据集
 data = read_jsonl_file("劳动争议.jsonl")
-train_data, val_data, test_data = split_data(data, 0.9, 0.05, 0.05)
+train_data, val_data, test_data = split_data(data, 0.8, 0.1, 0.1)
 
 # 将数据写入对应的文件
 write_jsonl_file("train.jsonl", train_data)

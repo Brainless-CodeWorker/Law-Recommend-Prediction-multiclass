@@ -41,7 +41,7 @@ def build_dataset(config):
                 if not lin:
                     continue
                 obj = json.loads(lin.strip())
-                texts, law_text, law_hierarchy, label = obj['texts'], obj['text_combined'], obj['law_hierarchy'], obj['correct']
+                texts, law_text, law_hierarchy, label = obj['texts'], obj['text_combined'], obj['law_hierarchy'], obj['label']
                 tokens = []
                 for text in texts:
                     token = token_and_pad(law_text, law_hierarchy, text)
