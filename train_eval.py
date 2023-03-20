@@ -55,16 +55,17 @@ def train(config, model, train_iter, dev_iter, test_iter):
         for i, (tokens, labels) in enumerate(train_iter):
 
             #仅支持batch_size = 1
-            tokens = tokens[0]
+            #tokens = tokens[0]
             #参数预处理
 
             debug('Running base')
             model.eval()
             with torch.no_grad():
                 output = model.pre_forward(tokens)
-            print(loss, "output=", output, "label=", labels)
+            print("output=", output, "label=", labels)
 
             model.train()
+            tokens = tokens.permute(1, 0, 2, 3)
             for id, token in enumerate(tokens):
                 output = model(token, id)
                 model.zero_grad()
